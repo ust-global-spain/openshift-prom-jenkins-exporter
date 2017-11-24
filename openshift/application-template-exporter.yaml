@@ -34,10 +34,11 @@ objects:
       type: Git
       git:
         uri: ${GIT_BUILD_PROJECT}
+      contextDir: dockerfile
     strategy:
       type: Docker
       dockerStrategy:
-        dockerfilePath: dockerfile/Dockerfile
+        dockerfilePath: Dockerfile
         env:
           - name: "EXPORTER_VERSION"
             value: "${EXPORTER_VERSION}"
@@ -127,6 +128,6 @@ parameters:
   - name: GIT_BUILD_PROJECT
     value: "https://github.com/ust-global-spain/openshift-prom-jenkins-exporter.git"
   - name: EXPORTER_VERSION
-    value: "1.1.0"
+    value: "1.2.0"
 labels:
   template: application-template-jenkins-exporter
