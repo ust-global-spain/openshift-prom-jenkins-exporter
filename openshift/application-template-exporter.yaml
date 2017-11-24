@@ -1,0 +1,132 @@
+---
+kind: Template
+apiVersion: v1
+metadata:
+  name: jenkins-exporter-template
+  annotations:
+    description: This template shows how to create a exporter jenkins application in openshift
+      origin v3
+    iconClass: icon-jenkins
+    tags: instant-app,jenkins
+objects:
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: ${APP_NAME}
+  stringData: 
+    jenkinsuser: ${JENKINS_USER}
+    jenkinspassword: ${JENKINS_PASSWORD}
+  
+- kind: ImageStream
+  apiVersion: v1
+  metadata:
+    name: ${APP_NAME}
+- kind: BuildConfig
+  apiVersion: v1
+  metadata:
+    name: ${APP_NAME}
+    labels:
+      name: ${APP_NAME}
+    annotations:
+      template.alpha.openshift.io/wait-for-ready: 'true'
+  spec:
+    source:
+      type: Git
+      git:
+        uri: ${GIT_BUILD_PROJECT}
+    strategy:
+      type: Docker
+      dockerStrategy:
+        dockerfilePath: dockerfile/Dockerfile
+        env:
+          - name: "EXPORTER_VERSION"
+            value: "${EXPORTER_VERSION}"
+    output:
+      to:
+        kind: ImageStreamTag
+        name: ${APP_NAME}:latest
+- kind: DeploymentConfig
+  apiVersion: v1
+  metadata:
+    name: ${APP_NAME}
+  spec:
+    strategy:
+      type: Rolling      
+    triggers:
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+        - ${APP_NAME}
+        from:
+          kind: ImageStreamTag
+          name: ${APP_NAME}:latest
+          namespace: ${IMAGE_NAMESPACE}
+    - type: ConfigChange
+    replicas: 1
+    selector:
+      name: ${APP_NAME}
+    template:
+      metadata:
+        labels:
+          name: ${APP_NAME}
+        annotations:
+          openshift.io/generated-by: OpenShiftNewApp
+          prometheus.io/path: /
+          prometheus.io/port: '${APP_PORT}'
+          prometheus.io/scrape: 'true'  
+      spec:
+        securityContext: 
+          supplementalGroups: ["${{APP_SUPPLEMENTAL_GROUP}}"]
+        containers:
+        - name: ${APP_NAME}
+          ports:
+          - containerPort: ${{APP_PORT}}
+            protocol: TCP
+          env: 
+          - name: JENKINS_USER
+            valueFrom:
+              secretKeyRef:
+                name: ${APP_NAME}
+                key: jenkinsuser
+          - name: JENKINS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: ${APP_NAME}
+                key: jenkinspassword
+          - name: JENKINS_URL
+            value: "${JENKINS_URL}"
+          - name: APP_PORT
+            value: "${APP_PORT}"
+- kind: Service
+  apiVersion: v1
+  metadata:
+    labels:
+      app: ${APP_NAME}
+    name: ${APP_NAME}
+  spec:
+    ports:
+    - port: ${{APP_PORT}}
+    selector:
+      app: ${APP_NAME}
+parameters:
+  - name: APP_NAME
+    value: "jenkins-exporter"
+  - name: IMAGE_NAMESPACE
+    required: true
+  - name: APP_PORT
+    value: "9118"
+  - name: APP_SUPPLEMENTAL_GROUP
+    value: "65500"
+  - name: JENKINS_URL
+    value: http://jenkins:8080
+  - name: JENKINS_USER
+    required: true
+  - name: JENKINS_PASSWORD
+    required: true
+  - name: GIT_BUILD_PROJECT
+    value: "https://github.com/ust-global-spain/openshift-prom-jenkins-exporter.git"
+  - name: EXPORTER_VERSION
+    value: "1.1.0"
+labels:
+  template: application-template-jenkins-exporter
